@@ -1,0 +1,32 @@
+FROM nginx
+
+ARG APP_DOMAIN
+ARG CONF_TEMPLATE
+
+ENV APP_DOMAIN=${APP_DOMAIN}
+
+RUN echo $APP_DOMAIN
+
+RUN apt update && apt install -y curl cron supervisor
+
+COPY /nginx/supervisor.conf /etc/supervisor.conf
+
+COPY ${CONF_TEMPLATE} /etc/nginx/templates/app.conf.template
+
+# Copy the cron job script into the container
+COPY /nginx/allow-cloudflare-only.sh /etc/nginx/jobs/allow-cloudflare-only.sh
+
+# Set permissions for the cron job script
+RUN chmod +x /etc/nginx/jobs/allow-cloudflare-only.sh
+
+# Execute the cron job script once during container build
+RUN /etc/nginx/jobs/allow-cloudflare-only.sh
+
+# Add the cron job to the crontab
+RUN echo "0 * * * * root /etc/nginx/jobs/allow-cloudflare-only.sh --reload" >> /etc/crontab
+
+# Generate the final Nginx configuration file using envsubst
+RUN envsubst '${APP_DOMAIN}' < /etc/nginx/templates/app.conf.template > /etc/nginx/conf.d/app.conf
+
+# Start supervisor when the container starts
+CMD ["supervisord", "-c", "/etc/supervisor.conf"]

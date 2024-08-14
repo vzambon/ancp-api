@@ -1,0 +1,10 @@
+image: docker:latest
+
+services:
+  - docker:dind
+
+stages:
+  - deploy
+
+include:
+  - local: 'gitlab-ci/production.yml'

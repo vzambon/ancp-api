@@ -1,0 +1,31 @@
+production_deploy:
+  stage: deploy
+  script:
+    - echo "Deploying..."
+    - set -e
+    - cd docker/deploy
+    - sed -i "s|app_env|production|g" .env
+    - sed -i "s|app_debug|$APP_DEBUG|g" .env
+    - sed -i "s|app_name|$APP_NAME|g" .env
+    - sed -i "s|db_host_ancp|$DB_HOST_ANCP|g" .env
+    - sed -i "s|db_username_ancp|$DB_USERNAME_ANCP|g" .env
+    - sed -i "s|db_database_ancp|$DB_DATABASE_ANCP|g" .env
+    - sed -i "s|db_password_ancp|$DB_PASSWORD_ANCP|g" .env
+    - sed -i "s|app_url|$APP_URL|g" .env
+    - sed -i "s|session_domain|$SESSION_DOMAIN|g" .env
+    - sed -i "s|sanctum_stateful_domains|$SANCTUM_STATEFUL_DOMAINS|g" .env
+    - PEM_FILE="nginx/certs/${APP_DOMAIN}.pem"
+    - echo "$CERTS_PEM" > $PEM_FILE
+    - KEY_FILE="nginx/certs/${APP_DOMAIN}.key"
+    - echo "$CERTS_KEY" > $KEY_FILE
+    - chmod 644 $PEM_FILE
+    - chmod 600 $KEY_FILE
+    - chmod +x ./deploy_production.sh
+    - ./deploy_production.sh
+    - echo "Deploy complete."
+  environment:
+    name: production
+  only:
+    - main
+  tags:
+    - production

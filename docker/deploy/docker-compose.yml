@@ -1,0 +1,110 @@
+services:
+  laravel:
+    container_name: ${APP_NAME}-laravel
+    image: ${APP_NAME}/laravel
+    build:
+      context: .
+    networks:
+      - internal
+    expose:
+      - 6001
+    volumes:
+      - '../../:/var/www'
+      - 'laravel_storage:/var/www/storage'
+      - './supervisor.conf:/etc/supervisor.conf'
+    deploy:
+      resources:
+        reservations:
+          cpus: '1'
+          memory: 1gb
+    depends_on:
+      - mysql
+      - redis
+      - meilisearch
+    restart: unless-stopped
+  nginx:
+    container_name: ${APP_NAME}-nginx
+    image: ${APP_NAME}/nginx
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+      args:
+        APP_DOMAIN: ${APP_DOMAIN}
+        CONF_TEMPLATE: ${CONF_TEMPLATE}
+    ports:
+      - 443:443
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/logs:/var/log/nginx
+      - ./nginx/app.conf.template:/etc/nginx/templates/app.conf.template:ro'
+      - ./nginx/certs:/etc/nginx/certs
+    networks:
+      - internal
+      - spa_network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - laravel
+    restart: unless-stopped
+    ulimits:
+      nofile:
+        soft: 10240
+        hard: 10240
+  redis:
+    container_name: ${APP_NAME}-redis
+    image: redis
+    networks:
+      - internal
+    ports:
+      - 6379:6379 # must have a firewall policy
+    volumes:
+      - redis_data:/data
+      #- ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    #command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    restart: unless-stopped
+  meilisearch:
+    container_name: ${APP_NAME}-meilisearch
+    image: getmeili/meilisearch
+    volumes:
+      - meili_data:/meili_data
+    ports:
+      - 7700:7700 # must have a firewall policy
+    environment:
+      - MEILI_MASTER_KEY=${MEILISEARCH_KEY}
+    networks:
+      - internal
+    restart: unless-stopped
+  mysql:
+    container_name: ${APP_NAME}-mysql
+    image: mysql:8.0
+    ports:
+      - '3306:3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
+      MYSQL_ROOT_HOST: "%"
+      MYSQL_DATABASE: '${DB_DATABASE}'
+      MYSQL_ALLOW_EMPTY_PASSWORD: 1
+    volumes:
+      - 'mysql-db:/var/lib/mysql'
+    networks:
+      - internal
+    deploy:
+      resources:
+        reservations:
+          cpus: '1'
+          memory: 1gb
+networks:
+  internal:
+    driver: bridge
+  spa_network:
+    name: spa-network
+    driver: bridge
+volumes:
+  mysql-db:
+    name: ${APP_NAME}-mysql-db
+  meili_data:
+    name: ${APP_NAME}-meili_data
+  redis_data:
+    name: ${APP_NAME}-redis_data
+  laravel_storage:
+    name: ${APP_NAME}-laravel_storage
